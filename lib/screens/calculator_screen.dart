@@ -54,7 +54,6 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
 
   @override
   void dispose() {
-    sound.dispose();
     super.dispose();
   }
 
@@ -155,31 +154,39 @@ class _CalculatorScreenState extends State<CalculatorScreen> {
   }
 
   // Selección de operaciones básicas.
-  void pressOperator(String newOperator) {
-    sound.playTap();
+void pressOperator(String newOperator) {
+  sound.playTap();
 
-    final value = double.tryParse(display);
+  final value = double.tryParse(display);
 
-    if (value == null) {
-      showError('Número inválido.');
-      return;
-    }
+  if (value == null) {
+    showError('Número inválido.');
+    return;
+  }
 
-    if (firstNumber != null && currentOperator != null) {
-      final success = calculateBasic();
 
-      if (!success) return;
-    }
-
+  if (firstNumber != null && waitingForSecondNumber) {
     setState(() {
-      firstNumber = value;
       currentOperator = newOperator;
-      expression = '${formatNumber(value)} $newOperator';
-      parityInfo = _singleParity(value);
-      waitingForSecondNumber = true;
+      expression = '${formatNumber(firstNumber!)} $newOperator';
       status = GaosStatus.ready;
     });
+    return;
   }
+  if (firstNumber != null && currentOperator != null) {
+    final success = calculateBasic();
+    if (!success) return;
+  }
+
+  setState(() {
+    firstNumber = value;
+    currentOperator = newOperator;
+    expression = '${formatNumber(value)} $newOperator';
+    parityInfo = _singleParity(value);
+    waitingForSecondNumber = true;
+    status = GaosStatus.ready;
+  });
+}
 
   void pressEquals() {
     calculateBasic();

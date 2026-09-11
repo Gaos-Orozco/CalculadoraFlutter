@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-
 import 'screens/startup_screen.dart';
 
 void main() {
@@ -13,12 +12,11 @@ class MiApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'NOVA Mobile',
+      title: 'GAOS Mobile',
       theme: ThemeData(
         useMaterial3: true,
         brightness: Brightness.dark,
-        scaffoldBackgroundColor:
-            const Color(0xFF050706),
+        scaffoldBackgroundColor: const Color(0xFF050706),
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFF39FF14),
           brightness: Brightness.dark,

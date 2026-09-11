@@ -70,42 +70,4 @@ class CalculatorService {
     return log(a) / ln10;
   }
 
-  // Suma de los dígitos
-  int sumaDigitos(int numero) {
-    int n = numero.abs();
-    int suma = 0;
-
-    while (n > 0) {
-      suma += n % 10;
-      n ~/= 10;
-    }
-
-    return suma;
-  }
-
-  // Determina si un número es primo
-  bool esPrimo(int numero) {
-    if (numero < 2) {
-      return false;
-    }
-
-    for (int i = 2; i <= sqrt(numero); i++) {
-      if (numero % i == 0) {
-        return false;
-      }
-    }
-
-    return true;
-  }
-
-  // Determina si un número es cuadrado perfecto
-  bool esCuadradoPerfecto(int numero) {
-    if (numero < 0) {
-      return false;
-    }
-
-    int raiz = sqrt(numero).toInt();
-
-    return raiz * raiz == numero;
-  }
 }

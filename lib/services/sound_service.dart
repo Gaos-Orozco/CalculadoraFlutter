@@ -51,6 +51,4 @@ class SoundService {
       );
     }
   }
-
-  Future<void> dispose() async {}
 }
