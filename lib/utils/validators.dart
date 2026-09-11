@@ -14,13 +14,5 @@ class Validators {
     return esPar(numero) ? 'Par' : 'Impar';
   }
 
-  // Verifica que el texto corresponda a un número
-  bool esNumeroValido(String valor) {
-    return double.tryParse(valor) != null;
-  }
-
-  // Verifica que el texto corresponda a un entero
-  bool esEntero(String valor) {
-    return int.tryParse(valor) != null;
-  }
+ 
 }

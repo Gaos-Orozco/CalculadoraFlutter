@@ -4,56 +4,38 @@ import '../services/calculator_service.dart';
 import '../services/sound_service.dart';
 import '../utils/validators.dart';
 
-enum GaosStatus {
-  ready,
-  success,
-  error,
-}
+enum GaosStatus { ready, success, error }
 
 class CalculatorScreen extends StatefulWidget {
   const CalculatorScreen({super.key});
 
   @override
-  State<CalculatorScreen> createState() =>
-      _CalculatorScreenState();
+  State<CalculatorScreen> createState() => _CalculatorScreenState();
 }
 
-class _CalculatorScreenState
-    extends State<CalculatorScreen> {
-  final CalculatorService calculator =
-      CalculatorService();
-
-  final Validators validators =
-      Validators();
-
-  final SoundService sound =
-      SoundService();
+class _CalculatorScreenState extends State<CalculatorScreen> {
+  final CalculatorService calculator = CalculatorService();
+  final Validators validators = Validators();
+  final SoundService sound = SoundService();
 
   String display = '0';
   String expression = '';
+  String parityInfo = '';
 
   double? firstNumber;
   String? currentOperator;
-
   bool waitingForSecondNumber = false;
 
-  GaosStatus status =
-      GaosStatus.ready;
+  GaosStatus status = GaosStatus.ready;
 
   final List<String> history = [];
-
-  // ============================================================
-  // ESTADO
-  // ============================================================
 
   Color get statusColor {
     switch (status) {
       case GaosStatus.success:
         return const Color(0xFF39FF14);
-
       case GaosStatus.error:
         return const Color(0xFFFF304F);
-
       case GaosStatus.ready:
         return const Color(0xFF39FF14);
     }
@@ -63,19 +45,20 @@ class _CalculatorScreenState
     switch (status) {
       case GaosStatus.success:
         return 'SUCCESS // OPERATION COMPLETE';
-
       case GaosStatus.error:
         return 'ERROR // OPERATION FAILED';
-
       case GaosStatus.ready:
         return 'SYSTEM READY // GAOS MOBILE';
     }
   }
 
-  // ============================================================
-  // ÉXITO
-  // ============================================================
+  @override
+  void dispose() {
+    sound.dispose();
+    super.dispose();
+  }
 
+  // Estado visual de una operación exitosa.
   void setSuccess() {
     setState(() {
       status = GaosStatus.success;
@@ -83,28 +66,21 @@ class _CalculatorScreenState
 
     sound.playSuccess();
 
-    Future.delayed(
-      const Duration(milliseconds: 1000),
-      () {
-        if (!mounted) return;
+    Future.delayed(const Duration(milliseconds: 1000), () {
+      if (!mounted) return;
 
-        setState(() {
-          status = GaosStatus.ready;
-        });
-      },
-    );
+      setState(() {
+        status = GaosStatus.ready;
+      });
+    });
   }
 
-  // ============================================================
-  // NÚMEROS
-  // ============================================================
-
+  // Entrada de números.
   void pressNumber(String number) {
     sound.playTap();
 
     setState(() {
-      if (display == '0' ||
-          waitingForSecondNumber) {
+      if (display == '0' || waitingForSecondNumber) {
         display = number;
         waitingForSecondNumber = false;
       } else {
@@ -112,6 +88,7 @@ class _CalculatorScreenState
       }
 
       status = GaosStatus.ready;
+      _updateParityRadar();
     });
   }
 
@@ -127,19 +104,18 @@ class _CalculatorScreenState
       }
 
       status = GaosStatus.ready;
+      _updateParityRadar();
     });
   }
 
-  // ============================================================
-  // CONTROL
-  // ============================================================
-
+  // Control de la calculadora.
   void clearCalculator() {
     sound.playTap();
 
     setState(() {
       display = '0';
       expression = '';
+      parityInfo = '';
       firstNumber = null;
       currentOperator = null;
       waitingForSecondNumber = false;
@@ -152,17 +128,14 @@ class _CalculatorScreenState
 
     setState(() {
       if (display.length <= 1 ||
-          (display.length == 2 &&
-              display.startsWith('-'))) {
+          (display.length == 2 && display.startsWith('-'))) {
         display = '0';
       } else {
-        display = display.substring(
-          0,
-          display.length - 1,
-        );
+        display = display.substring(0, display.length - 1);
       }
 
       status = GaosStatus.ready;
+      _updateParityRadar();
     });
   }
 
@@ -172,55 +145,38 @@ class _CalculatorScreenState
     setState(() {
       if (display == '0') return;
 
-      if (display.startsWith('-')) {
-        display =
-            display.substring(1);
-      } else {
-        display = '-$display';
-      }
+      display = display.startsWith('-')
+          ? display.substring(1)
+          : '-$display';
 
       status = GaosStatus.ready;
+      _updateParityRadar();
     });
   }
 
-  // ============================================================
-  // OPERADORES
-  // ============================================================
-
-  void pressOperator(
-    String newOperator,
-  ) {
+  // Selección de operaciones básicas.
+  void pressOperator(String newOperator) {
     sound.playTap();
 
-    final value =
-        double.tryParse(display);
+    final value = double.tryParse(display);
 
     if (value == null) {
       showError('Número inválido.');
       return;
     }
 
-    if (firstNumber != null &&
-        currentOperator != null) {
-      final success =
-          calculateBasic();
+    if (firstNumber != null && currentOperator != null) {
+      final success = calculateBasic();
 
       if (!success) return;
     }
 
     setState(() {
-      firstNumber =
-          double.tryParse(display);
-
-      currentOperator =
-          newOperator;
-
-      expression =
-          '${formatNumber(double.parse(display))} '
-          '$newOperator';
-
+      firstNumber = value;
+      currentOperator = newOperator;
+      expression = '${formatNumber(value)} $newOperator';
+      parityInfo = _singleParity(value);
       waitingForSecondNumber = true;
-
       status = GaosStatus.ready;
     });
   }
@@ -229,54 +185,39 @@ class _CalculatorScreenState
     calculateBasic();
   }
 
+  // Ejecuta suma, resta, multiplicación y división.
   bool calculateBasic() {
-    final secondNumber =
-        double.tryParse(display);
+    final secondNumber = double.tryParse(display);
 
     if (firstNumber == null ||
         currentOperator == null ||
-        secondNumber == null) {
-      showError(
-        'Completa la operación.',
-      );
-
+        secondNumber == null ||
+        waitingForSecondNumber) {
+      showError('Completa la operación.');
       return false;
     }
 
     try {
-      double result;
+      final first = firstNumber!;
+      final operator = currentOperator!;
 
-      switch (currentOperator) {
+      late double result;
+
+      switch (operator) {
         case '+':
-          result =
-              calculator.sumar(
-            firstNumber!,
-            secondNumber,
-          );
+          result = calculator.sumar(first, secondNumber);
           break;
 
         case '−':
-          result =
-              calculator.restar(
-            firstNumber!,
-            secondNumber,
-          );
+          result = calculator.restar(first, secondNumber);
           break;
 
         case '×':
-          result =
-              calculator.multiplicar(
-            firstNumber!,
-            secondNumber,
-          );
+          result = calculator.multiplicar(first, secondNumber);
           break;
 
         case '÷':
-          result =
-              calculator.dividir(
-            firstNumber!,
-            secondNumber,
-          );
+          result = calculator.dividir(first, secondNumber);
           break;
 
         default:
@@ -284,56 +225,42 @@ class _CalculatorScreenState
       }
 
       final operation =
-          '${formatNumber(firstNumber!)} '
-          '$currentOperator '
+          '${formatNumber(first)} $operator '
           '${formatNumber(secondNumber)} = '
           '${formatNumber(result)}';
 
       setState(() {
-        display =
-            formatNumber(result);
-
+        display = formatNumber(result);
         expression = operation;
 
-        history.insert(
-          0,
-          operation,
-        );
+        history.insert(0, operation);
 
         firstNumber = null;
         currentOperator = null;
         waitingForSecondNumber = true;
+
+        parityInfo = _twoNumberParity(first, secondNumber);
       });
 
       setSuccess();
 
       return true;
     } catch (e) {
-      showError(
-        cleanError(
-          e.toString(),
-        ),
-      );
-
+      showError(cleanError(e.toString()));
       return false;
     }
   }
 
-  // ============================================================
-  // POTENCIA
-  // ============================================================
-
+  // Potencia con exponente introducido por el usuario.
   void power() {
-    final base =
-        double.tryParse(display);
+    final base = double.tryParse(display);
 
     if (base == null) {
       showError('Número inválido.');
       return;
     }
 
-    final controller =
-        TextEditingController();
+    final controller = TextEditingController();
 
     showDialog(
       context: context,
@@ -342,56 +269,51 @@ class _CalculatorScreenState
           title: 'POTENCIA',
           child: TextField(
             controller: controller,
-            keyboardType:
-                const TextInputType
-                    .numberWithOptions(
+            autofocus: true,
+            keyboardType: const TextInputType.numberWithOptions(
               decimal: true,
               signed: true,
             ),
-            style:
-                const TextStyle(
+            style: const TextStyle(
               color: Colors.white,
             ),
-            decoration:
-                const InputDecoration(
-              hintText:
-                  'Ingresa el exponente',
-              hintStyle:
-                  TextStyle(
+            decoration: const InputDecoration(
+              hintText: 'Ingresa el exponente',
+              hintStyle: TextStyle(
                 color: Colors.white38,
+              ),
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Color(0xFF29442F),
+                ),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Color(0xFF39FF14),
+                ),
               ),
             ),
           ),
           onCancel: () {
-            Navigator.pop(
-              dialogContext,
-            );
+            controller.dispose();
+            Navigator.pop(dialogContext);
           },
           onConfirm: () {
-            final exponent =
-                double.tryParse(
-              controller.text,
-            );
+            final exponent = double.tryParse(controller.text);
 
             if (exponent == null) {
-              Navigator.pop(
-                dialogContext,
-              );
+              controller.dispose();
+              Navigator.pop(dialogContext);
 
-              showError(
-                'Exponente inválido.',
-              );
-
+              showError('Exponente inválido.');
               return;
             }
 
-            Navigator.pop(
-              dialogContext,
-            );
+            Navigator.pop(dialogContext);
+            controller.dispose();
 
             try {
-              final result =
-                  calculator.potencia(
+              final result = calculator.potencia(
                 base,
                 exponent,
               );
@@ -402,25 +324,18 @@ class _CalculatorScreenState
                   '${formatNumber(result)}';
 
               setState(() {
-                display =
-                    formatNumber(result);
+                display = formatNumber(result);
+                expression = operation;
 
-                expression =
-                    operation;
+                history.insert(0, operation);
 
-                history.insert(
-                  0,
-                  operation,
-                );
+                parityInfo = _singleParity(result);
+                waitingForSecondNumber = true;
               });
 
               setSuccess();
             } catch (e) {
-              showError(
-                cleanError(
-                  e.toString(),
-                ),
-              );
+              showError(cleanError(e.toString()));
             }
           },
         );
@@ -428,13 +343,9 @@ class _CalculatorScreenState
     );
   }
 
-  // ============================================================
-  // RAÍZ
-  // ============================================================
-
+  // Raíz cuadrada.
   void squareRoot() {
-    final number =
-        double.tryParse(display);
+    final number = double.tryParse(display);
 
     if (number == null) {
       showError('Número inválido.');
@@ -442,42 +353,31 @@ class _CalculatorScreenState
     }
 
     try {
-      final result =
-          calculator.raiz(number);
+      final result = calculator.raiz(number);
 
       final operation =
           '√${formatNumber(number)} = '
           '${formatNumber(result)}';
 
       setState(() {
-        display =
-            formatNumber(result);
-
+        display = formatNumber(result);
         expression = operation;
 
-        history.insert(
-          0,
-          operation,
-        );
+        history.insert(0, operation);
+
+        parityInfo = _singleParity(result);
+        waitingForSecondNumber = true;
       });
 
       setSuccess();
     } catch (e) {
-      showError(
-        cleanError(
-          e.toString(),
-        ),
-      );
+      showError(cleanError(e.toString()));
     }
   }
 
-  // ============================================================
-  // LOG
-  // ============================================================
-
+  // Logaritmo base 10.
   void logarithm() {
-    final number =
-        double.tryParse(display);
+    final number = double.tryParse(display);
 
     if (number == null) {
       showError('Número inválido.');
@@ -485,163 +385,129 @@ class _CalculatorScreenState
     }
 
     try {
-      final result =
-          calculator.logaritmo(number);
+      final result = calculator.logaritmo(number);
 
       final operation =
           'log₁₀(${formatNumber(number)}) = '
           '${formatNumber(result)}';
 
       setState(() {
-        display =
-            formatNumber(result);
-
+        display = formatNumber(result);
         expression = operation;
 
-        history.insert(
-          0,
-          operation,
-        );
+        history.insert(0, operation);
+
+        parityInfo = _singleParity(result);
+        waitingForSecondNumber = true;
       });
 
       setSuccess();
     } catch (e) {
-      showError(
-        cleanError(
-          e.toString(),
-        ),
-      );
+      showError(cleanError(e.toString()));
     }
   }
 
-  // ============================================================
-  // COCIENTE / RESIDUO
-  // ============================================================
-
-  void integerOperation(
-    String type,
-  ) {
-    final first =
-        int.tryParse(display);
+  // Cociente y residuo trabajan exclusivamente con enteros.
+  void integerOperation(String type) {
+    final first = int.tryParse(display);
 
     if (first == null) {
       showError(
         'Esta operación requiere un número entero.',
       );
-
       return;
     }
 
-    final controller =
-        TextEditingController();
+    final controller = TextEditingController();
 
     showDialog(
       context: context,
       builder: (dialogContext) {
+        final title =
+            type == 'cociente' ? 'COCIENTE' : 'RESIDUO';
+
         return _GaosDialog(
-          title: type == 'cociente'
-              ? 'COCIENTE'
-              : 'RESIDUO',
+          title: title,
           child: TextField(
             controller: controller,
-            keyboardType:
-                TextInputType.number,
-            style:
-                const TextStyle(
+            autofocus: true,
+            keyboardType: TextInputType.number,
+            style: const TextStyle(
               color: Colors.white,
             ),
-            decoration:
-                const InputDecoration(
-              hintText:
-                  'Segundo número entero',
-              hintStyle:
-                  TextStyle(
+            decoration: const InputDecoration(
+              hintText: 'Segundo número entero',
+              hintStyle: TextStyle(
                 color: Colors.white38,
+              ),
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Color(0xFF29442F),
+                ),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(
+                  color: Color(0xFF39FF14),
+                ),
               ),
             ),
           ),
           onCancel: () {
-            Navigator.pop(
-              dialogContext,
-            );
+            controller.dispose();
+            Navigator.pop(dialogContext);
           },
           onConfirm: () {
-            final second =
-                int.tryParse(
-              controller.text,
-            );
+            final second = int.tryParse(controller.text);
 
             if (second == null) {
-              Navigator.pop(
-                dialogContext,
-              );
+              controller.dispose();
+              Navigator.pop(dialogContext);
 
               showError(
                 'Debes ingresar un número entero.',
               );
-
               return;
             }
 
             if (second == 0) {
-              Navigator.pop(
-                dialogContext,
-              );
+              controller.dispose();
+              Navigator.pop(dialogContext);
 
               showError(
                 'No se puede dividir entre cero.',
               );
-
               return;
             }
 
-            Navigator.pop(
-              dialogContext,
-            );
+            Navigator.pop(dialogContext);
+            controller.dispose();
 
             try {
-              int result;
+              final result = type == 'cociente'
+                  ? calculator.cociente(first, second)
+                  : calculator.residuo(first, second);
 
-              if (type == 'cociente') {
-                result =
-                    calculator.cociente(
-                  first,
-                  second,
-                );
-              } else {
-                result =
-                    calculator.residuo(
-                  first,
-                  second,
-                );
-              }
-
-              final text =
-                  type == 'cociente'
-                      ? 'COCIENTE // '
-                          '$first ÷ $second = $result'
-                      : 'RESIDUO // '
-                          '$first % $second = $result';
+              final operation = type == 'cociente'
+                  ? '$first ÷ $second → Cociente = $result'
+                  : '$first % $second → Residuo = $result';
 
               setState(() {
-                display =
-                    result.toString();
+                display = result.toString();
+                expression = operation;
 
-                expression = text;
+                history.insert(0, operation);
 
-                history.insert(
-                  0,
-                  text,
+                parityInfo = _twoNumberParity(
+                  first.toDouble(),
+                  second.toDouble(),
                 );
+
+                waitingForSecondNumber = true;
               });
 
               setSuccess();
             } catch (e) {
-              showError(
-                cleanError(
-                  e.toString(),
-                ),
-              );
+              showError(cleanError(e.toString()));
             }
           },
         );
@@ -649,85 +515,22 @@ class _CalculatorScreenState
     );
   }
 
-  // ============================================================
-  // PAR / IMPAR
-  // ============================================================
-
-  void checkParity() {
-    final number =
-        int.tryParse(display);
-
-    if (number == null) {
-      showError(
-        'PAR / IMPAR requiere un número entero.',
-      );
-
-      return;
-    }
-
-    final parity =
-        validators.determinarParidad(
-      number,
-    );
-
-    final text =
-        '$number → $parity';
-
-    setState(() {
-      expression =
-          'RADAR // $text';
-
-      history.insert(
-        0,
-        'PARIDAD: $text',
-      );
-    });
-
-    setSuccess();
-
-    showDialog(
-      context: context,
-      builder: (context) {
-        return _GaosMessageDialog(
-          title:
-              'RADAR MATEMÁTICO',
-          message:
-              '$number es un número $parity.',
-        );
-      },
-    );
-  }
-
-  // ============================================================
-  // ERROR
-  // ============================================================
-
-  void showError(
-    String message,
-  ) {
+  // Muestra errores y reproduce el sonido correspondiente.
+  void showError(String message) {
     sound.playError();
 
     setState(() {
-      status =
-          GaosStatus.error;
-
-      expression =
-          'ERROR // $message';
+      status = GaosStatus.error;
+      expression = 'ERROR // $message';
     });
 
-    Future.delayed(
-      const Duration(
-        milliseconds: 1400,
-      ),
-      () {
-        if (!mounted) return;
+    Future.delayed(const Duration(milliseconds: 1400), () {
+      if (!mounted) return;
 
-        setState(() {
-          status =
-              GaosStatus.ready;
-        });
-      },
-    );
+      setState(() {
+        status = GaosStatus.ready;
+      });
+    });
 
     showDialog(
       context: context,
@@ -741,27 +544,21 @@ class _CalculatorScreenState
     );
   }
 
-  String cleanError(
-    String error,
-  ) {
+  String cleanError(String error) {
     return error.replaceFirst(
       'Exception: ',
       '',
     );
   }
 
-  // ============================================================
-  // FORMATO
-  // ============================================================
+  // Formato limpio para evitar .0 innecesarios.
+  String formatNumber(double number) {
+    if (!number.isFinite) {
+      return number.toString();
+    }
 
-  String formatNumber(
-    double number,
-  ) {
-    if (number ==
-        number.roundToDouble()) {
-      return number
-          .toInt()
-          .toString();
+    if (number == number.roundToDouble()) {
+      return number.toInt().toString();
     }
 
     return number
@@ -769,22 +566,75 @@ class _CalculatorScreenState
         .replaceFirst(
           RegExp(r'0+$'),
           '',
+        )
+        .replaceFirst(
+          RegExp(r'\.$'),
+          '',
         );
   }
 
-  // ============================================================
-  // HISTORIAL
-  // ============================================================
+  // Paridad automática de un número.
+  String _singleParity(double number) {
+    if (!number.isFinite ||
+        number != number.roundToDouble()) {
+      return 'PARITY // DECIMAL';
+    }
 
+    final value = number.toInt();
+
+    final parity =
+        validators.determinarParidad(value).toUpperCase();
+
+    return 'PARITY // $value: $parity';
+  }
+
+  // Paridad automática de los dos operandos.
+  String _twoNumberParity(
+    double first,
+    double second,
+  ) {
+    if (first != first.roundToDouble() ||
+        second != second.roundToDouble()) {
+      return 'PARITY // ENTEROS REQUERIDOS';
+    }
+
+    final firstInt = first.toInt();
+    final secondInt = second.toInt();
+
+    final firstParity =
+        validators.determinarParidad(firstInt).toUpperCase();
+
+    final secondParity =
+        validators.determinarParidad(secondInt).toUpperCase();
+
+    return 'PARITY // $firstInt: $firstParity   '
+        '$secondInt: $secondParity';
+  }
+
+  void _updateParityRadar() {
+    final current = double.tryParse(display);
+
+    if (firstNumber != null &&
+        current != null &&
+        !waitingForSecondNumber) {
+      parityInfo = _twoNumberParity(
+        firstNumber!,
+        current,
+      );
+    } else if (current != null) {
+      parityInfo = _singleParity(current);
+    } else {
+      parityInfo = '';
+    }
+  }
+
+  // Historial de operaciones.
   void showHistory() {
     showModalBottomSheet(
       context: context,
-      backgroundColor:
-          const Color(0xFF080B0A),
-      shape:
-          const RoundedRectangleBorder(
-        borderRadius:
-            BorderRadius.vertical(
+      backgroundColor: const Color(0xFF080B0A),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
           top: Radius.circular(28),
         ),
       ),
@@ -793,85 +643,56 @@ class _CalculatorScreenState
           child: SizedBox(
             height: 500,
             child: Padding(
-              padding:
-                  const EdgeInsets.all(22),
+              padding: const EdgeInsets.all(22),
               child: Column(
                 crossAxisAlignment:
-                    CrossAxisAlignment
-                        .start,
+                    CrossAxisAlignment.start,
                 children: [
                   const Row(
                     children: [
                       Icon(
                         Icons.history,
-                        color:
-                            Color(0xFF39FF14),
+                        color: Color(0xFF39FF14),
                       ),
-                      SizedBox(
-                        width: 10,
-                      ),
+                      SizedBox(width: 10),
                       Text(
                         'GAOS // HISTORY',
-                        style:
-                            TextStyle(
-                          fontFamily:
-                              'Pricedown',
-                          color:
-                              Color(
-                            0xFF39FF14,
-                          ),
+                        style: TextStyle(
+                          fontFamily: 'Pricedown',
+                          color: Color(0xFF39FF14),
                           fontSize: 23,
                           letterSpacing: 1,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(
-                    height: 18,
-                  ),
+                  const SizedBox(height: 18),
                   Expanded(
                     child: history.isEmpty
                         ? const Center(
                             child: Text(
                               'SIN OPERACIONES',
-                              style:
-                                  TextStyle(
-                                color:
-                                    Colors
-                                        .white38,
-                                letterSpacing:
-                                    2,
+                              style: TextStyle(
+                                color: Colors.white38,
+                                letterSpacing: 2,
                               ),
                             ),
                           )
                         : ListView.builder(
-                            itemCount:
-                                history.length,
+                            itemCount: history.length,
                             itemBuilder:
-                                (
-                              context,
-                              index,
-                            ) {
+                                (context, index) {
                               return ListTile(
-                                leading:
-                                    const Icon(
-                                  Icons
-                                      .calculate_outlined,
-                                  color:
-                                      Color(
-                                    0xFF39FF14,
-                                  ),
+                                leading: const Icon(
+                                  Icons.calculate_outlined,
+                                  color: Color(0xFF39FF14),
                                 ),
                                 title: Text(
                                   history[index],
-                                  style:
-                                      const TextStyle(
-                                    fontFamily:
-                                        'Pricedown',
-                                    color:
-                                        Colors.white,
-                                    fontSize:
-                                        19,
+                                  style: const TextStyle(
+                                    fontFamily: 'Pricedown',
+                                    color: Colors.white,
+                                    fontSize: 19,
                                   ),
                                 ),
                               );
@@ -887,18 +708,10 @@ class _CalculatorScreenState
     );
   }
 
-  // ============================================================
-  // PANTALLA
-  // ============================================================
-
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final screenHeight =
-        MediaQuery.of(context)
-            .size
-            .height;
+        MediaQuery.of(context).size.height;
 
     final phoneHeight =
         screenHeight < 850
@@ -906,34 +719,24 @@ class _CalculatorScreenState
             : 850.0;
 
     return Scaffold(
-      backgroundColor:
-          const Color(0xFF020403),
+      backgroundColor: const Color(0xFF020403),
       body: SafeArea(
         child: Center(
           child: Container(
             width: 430,
             height: phoneHeight,
             margin:
-                const EdgeInsets.symmetric(
-              vertical: 10,
-            ),
-            decoration:
-                BoxDecoration(
-              color:
-                  const Color(0xFF080B0A),
-              borderRadius:
-                  BorderRadius.circular(
-                40,
-              ),
+                const EdgeInsets.symmetric(vertical: 10),
+            decoration: BoxDecoration(
+              color: const Color(0xFF080B0A),
+              borderRadius: BorderRadius.circular(40),
               border: Border.all(
-                color:
-                    const Color(0xFF343A36),
+                color: const Color(0xFF343A36),
                 width: 2,
               ),
               boxShadow: const [
                 BoxShadow(
-                  color:
-                      Color(0xAA000000),
+                  color: Color(0xAA000000),
                   blurRadius: 35,
                   spreadRadius: 8,
                 ),
@@ -945,8 +748,7 @@ class _CalculatorScreenState
                 _buildHeader(),
                 _buildDisplay(),
                 Expanded(
-                  child:
-                      _buildKeypad(),
+                  child: _buildKeypad(),
                 ),
                 _buildAdvancedPanel(),
               ],
@@ -957,29 +759,17 @@ class _CalculatorScreenState
     );
   }
 
-  // ============================================================
-  // STATUS BAR
-  // ============================================================
-
   Widget _buildStatusBar() {
     return Padding(
       padding:
-          const EdgeInsets.fromLTRB(
-        22,
-        12,
-        22,
-        0,
-      ),
+          const EdgeInsets.fromLTRB(22, 12, 22, 0),
       child: Row(
         children: [
           const Text(
             'GAOS',
-            style:
-                TextStyle(
-              fontFamily:
-                  'Pricedown',
-              color:
-                  Color(0xFF39FF14),
+            style: TextStyle(
+              fontFamily: 'Pricedown',
+              color: Color(0xFF39FF14),
               fontSize: 19,
               letterSpacing: 1,
             ),
@@ -987,41 +777,29 @@ class _CalculatorScreenState
           const Spacer(),
           Text(
             _currentTime(),
-            style:
-                const TextStyle(
+            style: const TextStyle(
               color: Colors.white,
-              fontWeight:
-                  FontWeight.bold,
+              fontWeight: FontWeight.bold,
               fontSize: 13,
             ),
           ),
-          const SizedBox(
-            width: 12,
-          ),
+          const SizedBox(width: 12),
           const Icon(
-            Icons
-                .signal_cellular_alt,
+            Icons.signal_cellular_alt,
             size: 16,
-            color:
-                Colors.white70,
+            color: Colors.white70,
           ),
-          const SizedBox(
-            width: 6,
-          ),
+          const SizedBox(width: 6),
           const Icon(
             Icons.wifi,
             size: 16,
-            color:
-                Colors.white70,
+            color: Colors.white70,
           ),
-          const SizedBox(
-            width: 6,
-          ),
+          const SizedBox(width: 6),
           const Icon(
             Icons.battery_full,
             size: 18,
-            color:
-                Color(0xFF39FF14),
+            color: Color(0xFF39FF14),
           ),
         ],
       ),
@@ -1029,91 +807,58 @@ class _CalculatorScreenState
   }
 
   String _currentTime() {
-    final now =
-        DateTime.now();
+    final now = DateTime.now();
 
     return '${now.hour.toString().padLeft(2, '0')}:'
         '${now.minute.toString().padLeft(2, '0')}';
   }
 
-  // ============================================================
-  // HEADER
-  // ============================================================
-
   Widget _buildHeader() {
     return Padding(
       padding:
-          const EdgeInsets.fromLTRB(
-        20,
-        12,
-        12,
-        4,
-      ),
+          const EdgeInsets.fromLTRB(20, 12, 12, 4),
       child: Row(
         children: [
           Container(
             width: 42,
             height: 42,
-            decoration:
-                BoxDecoration(
-              color:
-                  const Color(
-                0xFF111613,
-              ),
-              borderRadius:
-                  BorderRadius.circular(
-                12,
-              ),
+            decoration: BoxDecoration(
+              color: const Color(0xFF111613),
+              borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color:
-                    const Color(
-                  0xFF39FF14,
-                ),
+                color: const Color(0xFF39FF14),
               ),
             ),
             child: const Icon(
-              Icons
-                  .calculate_outlined,
-              color:
-                  Color(0xFF39FF14),
+              Icons.calculate_outlined,
+              color: Color(0xFF39FF14),
             ),
           ),
-          const SizedBox(
-            width: 10,
-          ),
+          const SizedBox(width: 10),
           const Column(
             crossAxisAlignment:
-                CrossAxisAlignment
-                    .start,
+                CrossAxisAlignment.start,
             children: [
               Text(
                 'CALCULATOR',
-                style:
-                    TextStyle(
-                  fontFamily:
-                      'Pricedown',
-                  color:
-                      Colors.white,
+                style: TextStyle(
+                  fontFamily: 'Pricedown',
+                  color: Colors.white,
                   fontSize: 27,
                   letterSpacing: 1,
                 ),
               ),
               Text(
                 'LS-01 // GAOS MOBILE',
-                style:
-                    TextStyle(
-                  color:
-                      Colors.white38,
+                style: TextStyle(
+                  color: Colors.white38,
                   fontSize: 9,
-                  letterSpacing:
-                      1.2,
+                  letterSpacing: 1.2,
                 ),
               ),
             ],
           ),
           const Spacer(),
-
-          // ESTRELLAS
           Row(
             children: [
               _headerStar(true),
@@ -1123,15 +868,11 @@ class _CalculatorScreenState
               _headerStar(false),
             ],
           ),
-
           IconButton(
-            onPressed:
-                showHistory,
-            icon:
-                const Icon(
+            onPressed: showHistory,
+            icon: const Icon(
               Icons.history,
-              color:
-                  Colors.white70,
+              color: Colors.white70,
             ),
           ),
         ],
@@ -1139,101 +880,58 @@ class _CalculatorScreenState
     );
   }
 
-  Widget _headerStar(
-    bool active,
-  ) {
+  Widget _headerStar(bool active) {
     return Icon(
-      active
-          ? Icons.star
-          : Icons.star_border,
+      active ? Icons.star : Icons.star_border,
       size: 12,
       color: active
-          ? const Color(
-              0xFF39FF14,
-            )
+          ? const Color(0xFF39FF14)
           : Colors.white38,
     );
   }
 
-  // ============================================================
-  // DISPLAY
-  // ============================================================
-
   Widget _buildDisplay() {
     final isSuccess =
-        status ==
-            GaosStatus.success;
+        status == GaosStatus.success;
 
     final isError =
-        status ==
-            GaosStatus.error;
+        status == GaosStatus.error;
 
     return AnimatedContainer(
       duration:
-          const Duration(
-        milliseconds: 220,
-      ),
+          const Duration(milliseconds: 220),
       margin:
-          const EdgeInsets.fromLTRB(
-        16,
-        8,
-        16,
-        8,
-      ),
+          const EdgeInsets.fromLTRB(16, 8, 16, 8),
       padding:
-          const EdgeInsets.fromLTRB(
-        18,
-        10,
-        18,
-        12,
-      ),
-      width:
-          double.infinity,
-      decoration:
-          BoxDecoration(
+          const EdgeInsets.fromLTRB(18, 10, 18, 12),
+      width: double.infinity,
+      decoration: BoxDecoration(
         color: isError
-            ? const Color(
-                0xFF150608,
-              )
+            ? const Color(0xFF150608)
             : isSuccess
-                ? const Color(
-                    0xFF071407,
-                  )
-                : const Color(
-                    0xFF030504,
-                  ),
+                ? const Color(0xFF071407)
+                : const Color(0xFF030504),
         borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
+            BorderRadius.circular(20),
         border: Border.all(
-          color:
-              statusColor,
+          color: statusColor,
           width:
-              isSuccess ||
-                      isError
-                  ? 2
-                  : 1,
+              isSuccess || isError ? 2 : 1,
         ),
         boxShadow: [
           BoxShadow(
-            color:
-                statusColor
-                    .withValues(
+            color: statusColor.withValues(
               alpha:
-                  isSuccess ||
-                          isError
+                  isSuccess || isError
                       ? 0.35
                       : 0.12,
             ),
             blurRadius:
-                isSuccess ||
-                        isError
+                isSuccess || isError
                     ? 22
                     : 12,
             spreadRadius:
-                isSuccess ||
-                        isError
+                isSuccess || isError
                     ? 2
                     : 0,
           ),
@@ -1246,48 +944,36 @@ class _CalculatorScreenState
               Container(
                 width: 7,
                 height: 7,
-                decoration:
-                    BoxDecoration(
-                  color:
-                      statusColor,
-                  shape:
-                      BoxShape.circle,
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  shape: BoxShape.circle,
                   boxShadow: [
                     BoxShadow(
-                      color:
-                          statusColor,
+                      color: statusColor,
                       blurRadius: 6,
                     ),
                   ],
                 ),
               ),
-              const SizedBox(
-                width: 7,
-              ),
+              const SizedBox(width: 7),
               Expanded(
                 child: Text(
                   statusText,
                   maxLines: 1,
                   overflow:
-                      TextOverflow
-                          .ellipsis,
-                  style:
-                      TextStyle(
-                    color:
-                        statusColor,
+                      TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: statusColor,
                     fontSize: 9,
                     fontWeight:
                         FontWeight.bold,
-                    letterSpacing:
-                        1,
+                    letterSpacing: 1,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(
-            height: 3,
-          ),
+          const SizedBox(height: 3),
           SizedBox(
             height: 19,
             child: Align(
@@ -1297,12 +983,9 @@ class _CalculatorScreenState
                 expression,
                 maxLines: 1,
                 overflow:
-                    TextOverflow
-                        .ellipsis,
-                style:
-                    const TextStyle(
-                  color:
-                      Colors.white38,
+                    TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white38,
                   fontSize: 11,
                 ),
               ),
@@ -1311,50 +994,35 @@ class _CalculatorScreenState
           SizedBox(
             height: 72,
             child: FittedBox(
-              fit:
-                  BoxFit.scaleDown,
+              fit: BoxFit.scaleDown,
               alignment:
                   Alignment.centerRight,
-              child:
-                  AnimatedSwitcher(
+              child: AnimatedSwitcher(
                 duration:
                     const Duration(
                   milliseconds: 180,
                 ),
                 transitionBuilder:
-                    (
-                  child,
-                  animation,
-                ) {
+                    (child, animation) {
                   return ScaleTransition(
-                    scale:
-                        animation,
-                    child:
-                        child,
+                    scale: animation,
+                    child: child,
                   );
                 },
                 child: Text(
                   display,
-                  key: ValueKey(
-                    display,
-                  ),
-                  style:
-                      const TextStyle(
-                    fontFamily:
-                        'Pricedown',
+                  key: ValueKey(display),
+                  style: const TextStyle(
+                    fontFamily: 'Pricedown',
                     color:
                         Color(0xFFB8FF9F),
                     fontSize: 72,
-                    letterSpacing:
-                        2,
+                    letterSpacing: 2,
                     shadows: [
                       Shadow(
                         color:
-                            Color(
-                          0x6639FF14,
-                        ),
-                        blurRadius:
-                            8,
+                            Color(0x6639FF14),
+                        blurRadius: 8,
                       ),
                     ],
                   ),
@@ -1362,14 +1030,29 @@ class _CalculatorScreenState
               ),
             ),
           ),
+          if (parityInfo.isNotEmpty)
+            Align(
+              alignment:
+                  Alignment.centerRight,
+              child: Text(
+                parityInfo,
+                maxLines: 1,
+                overflow:
+                    TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color:
+                      Color(0xFF39FF14),
+                  fontSize: 9,
+                  fontWeight:
+                      FontWeight.bold,
+                  letterSpacing: 0.7,
+                ),
+              ),
+            ),
         ],
       ),
     );
   }
-
-  // ============================================================
-  // TECLADO
-  // ============================================================
 
   Widget _buildKeypad() {
     return Padding(
@@ -1394,95 +1077,67 @@ class _CalculatorScreenState
             ),
             _operatorButton(
               '÷',
-              () => pressOperator(
-                '÷',
-              ),
+              () => pressOperator('÷'),
             ),
           ]),
           _buttonRow([
             _button(
               '7',
-              () => pressNumber(
-                '7',
-              ),
+              () => pressNumber('7'),
             ),
             _button(
               '8',
-              () => pressNumber(
-                '8',
-              ),
+              () => pressNumber('8'),
             ),
             _button(
               '9',
-              () => pressNumber(
-                '9',
-              ),
+              () => pressNumber('9'),
             ),
             _operatorButton(
               '×',
-              () => pressOperator(
-                '×',
-              ),
+              () => pressOperator('×'),
             ),
           ]),
           _buttonRow([
             _button(
               '4',
-              () => pressNumber(
-                '4',
-              ),
+              () => pressNumber('4'),
             ),
             _button(
               '5',
-              () => pressNumber(
-                '5',
-              ),
+              () => pressNumber('5'),
             ),
             _button(
               '6',
-              () => pressNumber(
-                '6',
-              ),
+              () => pressNumber('6'),
             ),
             _operatorButton(
               '−',
-              () => pressOperator(
-                '−',
-              ),
+              () => pressOperator('−'),
             ),
           ]),
           _buttonRow([
             _button(
               '1',
-              () => pressNumber(
-                '1',
-              ),
+              () => pressNumber('1'),
             ),
             _button(
               '2',
-              () => pressNumber(
-                '2',
-              ),
+              () => pressNumber('2'),
             ),
             _button(
               '3',
-              () => pressNumber(
-                '3',
-              ),
+              () => pressNumber('3'),
             ),
             _operatorButton(
               '+',
-              () => pressOperator(
-                '+',
-              ),
+              () => pressOperator('+'),
             ),
           ]),
           _buttonRow([
             _button(
               '0',
-              () => pressNumber(
-                '0',
-              ),
+              () => pressNumber('0'),
             ),
             _button(
               '.',
@@ -1495,9 +1150,7 @@ class _CalculatorScreenState
     );
   }
 
-  Widget _buttonRow(
-    List<Widget> buttons,
-  ) {
+  Widget _buttonRow(List<Widget> buttons) {
     return Expanded(
       child: Row(
         children: buttons,
@@ -1513,15 +1166,12 @@ class _CalculatorScreenState
       child: Padding(
         padding:
             const EdgeInsets.all(4),
-        child:
-            _AnimatedCalcButton(
+        child: _AnimatedCalcButton(
           text: text,
-          onPressed:
-              onPressed,
+          onPressed: onPressed,
           isNumber:
-              RegExp(
-            r'^\d+$',
-          ).hasMatch(text),
+              RegExp(r'^\d+$')
+                  .hasMatch(text),
         ),
       ),
     );
@@ -1535,11 +1185,9 @@ class _CalculatorScreenState
       child: Padding(
         padding:
             const EdgeInsets.all(4),
-        child:
-            _AnimatedCalcButton(
+        child: _AnimatedCalcButton(
           text: text,
-          onPressed:
-              onPressed,
+          onPressed: onPressed,
           isOperator: true,
         ),
       ),
@@ -1552,21 +1200,15 @@ class _CalculatorScreenState
       child: Padding(
         padding:
             const EdgeInsets.all(4),
-        child:
-            _AnimatedCalcButton(
+        child: _AnimatedCalcButton(
           text: '=',
-          onPressed:
-              pressEquals,
+          onPressed: pressEquals,
           isEquals: true,
           fontSize: 34,
         ),
       ),
     );
   }
-
-  // ============================================================
-  // RADAR
-  // ============================================================
 
   Widget _buildAdvancedPanel() {
     return Container(
@@ -1584,21 +1226,14 @@ class _CalculatorScreenState
         8,
         7,
       ),
-      decoration:
-          BoxDecoration(
+      decoration: BoxDecoration(
         color:
-            const Color(
-          0xFF101412,
-        ),
+            const Color(0xFF101412),
         borderRadius:
-            BorderRadius.circular(
-          18,
-        ),
+            BorderRadius.circular(18),
         border: Border.all(
           color:
-              const Color(
-            0xFF202823,
-          ),
+              const Color(0xFF202823),
         ),
       ),
       child: Column(
@@ -1611,27 +1246,20 @@ class _CalculatorScreenState
                 color:
                     Color(0xFF39FF14),
               ),
-              SizedBox(
-                width: 6,
-              ),
+              SizedBox(width: 6),
               Text(
                 'RADAR MATEMÁTICO',
-                style:
-                    TextStyle(
-                  color:
-                      Colors.white54,
+                style: TextStyle(
+                  color: Colors.white54,
                   fontSize: 10,
                   fontWeight:
                       FontWeight.bold,
-                  letterSpacing:
-                      1.2,
+                  letterSpacing: 1.2,
                 ),
               ),
             ],
           ),
-          const SizedBox(
-            height: 4,
-          ),
+          const SizedBox(height: 4),
           Row(
             children: [
               _advancedButton(
@@ -1647,20 +1275,14 @@ class _CalculatorScreenState
                 logarithm,
               ),
               _advancedButton(
-                'PAR',
-                checkParity,
-              ),
-              _advancedButton(
                 'C/Q',
-                () =>
-                    integerOperation(
+                () => integerOperation(
                   'cociente',
                 ),
               ),
               _advancedButton(
                 '%',
-                () =>
-                    integerOperation(
+                () => integerOperation(
                   'residuo',
                 ),
               ),
@@ -1683,13 +1305,13 @@ class _CalculatorScreenState
         ),
         child: SizedBox(
           height: 34,
-          child:
-              OutlinedButton(
-            onPressed:
-                onPressed,
+          child: OutlinedButton(
+            onPressed: () {
+              sound.playTap();
+              onPressed();
+            },
             style:
-                OutlinedButton
-                    .styleFrom(
+                OutlinedButton.styleFrom(
               foregroundColor:
                   const Color(
                 0xFF39FF14,
@@ -1697,12 +1319,9 @@ class _CalculatorScreenState
               side:
                   const BorderSide(
                 color:
-                    Color(
-                  0xFF29442F,
-                ),
+                    Color(0xFF29442F),
               ),
-              padding:
-                  EdgeInsets.zero,
+              padding: EdgeInsets.zero,
               shape:
                   RoundedRectangleBorder(
                 borderRadius:
@@ -1727,19 +1346,13 @@ class _CalculatorScreenState
   }
 }
 
-// ============================================================
-// BOTÓN
-// ============================================================
-
 class _AnimatedCalcButton
     extends StatefulWidget {
   final String text;
   final VoidCallback onPressed;
-
   final bool isNumber;
   final bool isOperator;
   final bool isEquals;
-
   final double fontSize;
 
   const _AnimatedCalcButton({
@@ -1752,14 +1365,12 @@ class _AnimatedCalcButton
   });
 
   @override
-  State<_AnimatedCalcButton>
-      createState() =>
-          _AnimatedCalcButtonState();
+  State<_AnimatedCalcButton> createState() =>
+      _AnimatedCalcButtonState();
 }
 
 class _AnimatedCalcButtonState
-    extends State<
-        _AnimatedCalcButton> {
+    extends State<_AnimatedCalcButton> {
   bool pressed = false;
 
   void handlePress() {
@@ -1784,11 +1395,9 @@ class _AnimatedCalcButtonState
   }
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
-    Color background;
-    Color foreground;
+  Widget build(BuildContext context) {
+    final Color background;
+    final Color foreground;
 
     if (widget.isEquals) {
       background =
@@ -1806,68 +1415,53 @@ class _AnimatedCalcButtonState
     }
 
     return AnimatedScale(
-      scale:
-          pressed ? 0.91 : 1,
+      scale: pressed ? 0.91 : 1,
       duration:
-          const Duration(
-        milliseconds: 80,
-      ),
+          const Duration(milliseconds: 80),
       child: Material(
         color: background,
         borderRadius:
-            BorderRadius.circular(
-          17,
-        ),
+            BorderRadius.circular(17),
         child: InkWell(
-          onTap:
-              handlePress,
+          onTap: handlePress,
           borderRadius:
-              BorderRadius.circular(
-            17,
-          ),
+              BorderRadius.circular(17),
+          splashColor:
+              const Color(0x5539FF14),
+          highlightColor:
+              const Color(0x2239FF14),
           child: Container(
-            decoration:
-                BoxDecoration(
+            decoration: BoxDecoration(
               borderRadius:
-                  BorderRadius.circular(
-                17,
-              ),
+                  BorderRadius.circular(17),
               border: Border.all(
-                color:
-                    widget.isEquals
-                        ? const Color(
-                            0xFF5EFF43,
-                          )
-                        : const Color(
-                            0xFF2A332E,
-                          ),
+                color: widget.isEquals
+                    ? const Color(
+                        0xFF5EFF43,
+                      )
+                    : const Color(
+                        0xFF2A332E,
+                      ),
               ),
               boxShadow: [
                 BoxShadow(
-                  color:
-                      widget.isEquals
-                          ? const Color(
-                              0x6639FF14,
-                            )
-                          : background
-                              .withValues(
-                              alpha:
-                                  0.30,
-                            ),
+                  color: widget.isEquals
+                      ? const Color(
+                          0x6639FF14,
+                        )
+                      : background.withValues(
+                          alpha: 0.30,
+                        ),
                   blurRadius:
                       widget.isEquals
                           ? 14
                           : 7,
                   offset:
-                      const Offset(
-                    0,
-                    3,
-                  ),
+                      const Offset(0, 3),
                 ),
               ],
             ),
-            alignment:
-                Alignment.center,
+            alignment: Alignment.center,
             child: Text(
               widget.text,
               style: TextStyle(
@@ -1875,8 +1469,7 @@ class _AnimatedCalcButtonState
                     widget.isNumber
                         ? 'Pricedown'
                         : 'Arial',
-                color:
-                    foreground,
+                color: foreground,
                 fontSize:
                     widget.isNumber
                         ? 34
@@ -1893,14 +1486,11 @@ class _AnimatedCalcButtonState
                     widget.isNumber
                         ? [
                             Shadow(
-                              color:
-                                  foreground
-                                      .withValues(
-                                alpha:
-                                    0.25,
+                              color: foreground
+                                  .withValues(
+                                alpha: 0.25,
                               ),
-                              blurRadius:
-                                  3,
+                              blurRadius: 3,
                             ),
                           ]
                         : null,
@@ -1912,10 +1502,6 @@ class _AnimatedCalcButtonState
     );
   }
 }
-
-// ============================================================
-// DIÁLOGO
-// ============================================================
 
 class _GaosDialog
     extends StatelessWidget {
@@ -1932,30 +1518,24 @@ class _GaosDialog
   });
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     return AlertDialog(
       backgroundColor:
           const Color(0xFF0D110F),
       shape:
           RoundedRectangleBorder(
         borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
+            BorderRadius.circular(20),
         side:
             const BorderSide(
-          color:
-              Color(0xFF29442F),
+          color: Color(0xFF29442F),
         ),
       ),
       title: Text(
         title,
         style:
             const TextStyle(
-          fontFamily:
-              'Pricedown',
+          fontFamily: 'Pricedown',
           color:
               Color(0xFF39FF14),
           fontSize: 25,
@@ -1964,19 +1544,14 @@ class _GaosDialog
       content: child,
       actions: [
         TextButton(
-          onPressed:
-              onCancel,
+          onPressed: onCancel,
           child:
-              const Text(
-            'CANCELAR',
-          ),
+              const Text('CANCELAR'),
         ),
         ElevatedButton(
-          onPressed:
-              onConfirm,
+          onPressed: onConfirm,
           style:
-              ElevatedButton
-                  .styleFrom(
+              ElevatedButton.styleFrom(
             backgroundColor:
                 const Color(
               0xFF39FF14,
@@ -1985,18 +1560,12 @@ class _GaosDialog
                 Colors.black,
           ),
           child:
-              const Text(
-            'CALCULAR',
-          ),
+              const Text('CALCULAR'),
         ),
       ],
     );
   }
 }
-
-// ============================================================
-// MENSAJE
-// ============================================================
 
 class _GaosMessageDialog
     extends StatelessWidget {
@@ -2011,9 +1580,7 @@ class _GaosMessageDialog
   });
 
   @override
-  Widget build(
-    BuildContext context,
-  ) {
+  Widget build(BuildContext context) {
     final color = error
         ? Colors.redAccent
         : const Color(
@@ -2022,36 +1589,24 @@ class _GaosMessageDialog
 
     return AlertDialog(
       backgroundColor: error
-          ? const Color(
-              0xFF170707,
-            )
-          : const Color(
-              0xFF0D110F,
-            ),
+          ? const Color(0xFF170707)
+          : const Color(0xFF0D110F),
       shape:
           RoundedRectangleBorder(
         borderRadius:
-            BorderRadius.circular(
-          20,
-        ),
+            BorderRadius.circular(20),
         side:
-            BorderSide(
-          color: color,
-        ),
+            BorderSide(color: color),
       ),
       title: Row(
         children: [
           Icon(
             error
-                ? Icons
-                    .warning_rounded
-                : Icons
-                    .check_circle_outline,
+                ? Icons.warning_rounded
+                : Icons.check_circle_outline,
             color: color,
           ),
-          const SizedBox(
-            width: 10,
-          ),
+          const SizedBox(width: 10),
           Expanded(
             child: Text(
               title,
@@ -2075,15 +1630,10 @@ class _GaosMessageDialog
       ),
       actions: [
         TextButton(
-          onPressed: () {
-            Navigator.pop(
-              context,
-            );
-          },
+          onPressed: () =>
+              Navigator.pop(context),
           child:
-              const Text(
-            'ACEPTAR',
-          ),
+              const Text('ACEPTAR'),
         ),
       ],
     );

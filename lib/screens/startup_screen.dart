@@ -7,8 +7,7 @@ class StartupScreen extends StatefulWidget {
   const StartupScreen({super.key});
 
   @override
-  State<StartupScreen> createState() =>
-      _StartupScreenState();
+  State<StartupScreen> createState() => _StartupScreenState();
 }
 
 class _StartupScreenState extends State<StartupScreen> {
@@ -23,10 +22,8 @@ class _StartupScreenState extends State<StartupScreen> {
       loading = true;
     });
 
-    // Sonido de inicio
     await sound.playStartup();
 
-    // Pequeña pausa para que se sienta como una carga real
     await Future.delayed(
       const Duration(milliseconds: 900),
     );
@@ -35,8 +32,9 @@ class _StartupScreenState extends State<StartupScreen> {
 
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
-        transitionDuration:
-            const Duration(milliseconds: 650),
+        transitionDuration: const Duration(
+          milliseconds: 650,
+        ),
         pageBuilder: (
           context,
           animation,
@@ -59,61 +57,86 @@ class _StartupScreenState extends State<StartupScreen> {
     );
   }
 
+  Widget _buildStartButton() {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: loading ? null : enterApp,
+        borderRadius: BorderRadius.circular(18),
+        splashColor: const Color(0x5539FF14),
+        highlightColor: const Color(0x2239FF14),
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xEE050B06),
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: const Color(0xFF39FF14),
+              width: 3,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0xAA39FF14),
+                blurRadius: 18,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          alignment: Alignment.center,
+          child: const Text(
+            'INICIAR SISTEMA',
+            style: TextStyle(
+              fontFamily: 'Pricedown',
+              fontSize: 28,
+              color: Color(0xFF39FF14),
+              fontWeight: FontWeight.bold,
+              letterSpacing: 1.5,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor:
-          const Color(0xFF020403),
+      backgroundColor: const Color(0xFF020403),
       body: Center(
         child: Container(
           width: 430,
           height: 850,
           decoration: BoxDecoration(
-            color:
-                const Color(0xFF050706),
-            borderRadius:
-                BorderRadius.circular(42),
+            color: const Color(0xFF050706),
+            borderRadius: BorderRadius.circular(42),
             border: Border.all(
-              color:
-                  const Color(0xFF343A36),
+              color: const Color(0xFF343A36),
               width: 3,
             ),
             boxShadow: const [
               BoxShadow(
-                color:
-                    Color(0xDD000000),
+                color: Color(0xDD000000),
                 blurRadius: 45,
                 spreadRadius: 8,
               ),
             ],
           ),
           child: ClipRRect(
-            borderRadius:
-                BorderRadius.circular(39),
+            borderRadius: BorderRadius.circular(39),
             child: Stack(
               fit: StackFit.expand,
               children: [
-                // ==================================================
-                // IMAGEN PRINCIPAL
-                // ==================================================
-
+                // Imagen de fondo
                 Image.asset(
                   'assets/images/gaos_startup.png',
                   fit: BoxFit.cover,
                 ),
 
-                // ==================================================
-                // CAPA OSCURA MUY SUTIL
-                // ==================================================
-
+                // Capa oscura
                 Container(
                   decoration: const BoxDecoration(
-                    gradient:
-                        LinearGradient(
-                      begin:
-                          Alignment.topCenter,
-                      end:
-                          Alignment.bottomCenter,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
                       colors: [
                         Color(0x15000000),
                         Color(0x00000000),
@@ -123,38 +146,21 @@ class _StartupScreenState extends State<StartupScreen> {
                   ),
                 ),
 
-                // ==================================================
-                // BOTÓN INTERACTIVO
-                // ==================================================
-                // El botón ya está dibujado en la imagen.
-                // Flutter solamente coloca una zona táctil invisible
-                // encima de él.
-
-                  Positioned(
-                    left: 70,
-                    right: 70,
-                    bottom: 135,
+                // Botón creado por Flutter
+                Positioned(
+                  bottom: 165,
+                  left: 0,
+                  right: 0,
+                  child: Center(
                     child: SizedBox(
-                      height: 50,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          onTap: loading ? null : enterApp,
-                          borderRadius:
-                              BorderRadius.circular(18),
-                          splashColor:
-                              const Color(0x5539FF14),
-                          highlightColor:
-                              const Color(0x2239FF14),
-                        ),
-                      ),
+                      width: 300,
+                      height: 56,
+                      child: _buildStartButton(),
                     ),
                   ),
+                ),
 
-                // ==================================================
-                // INDICADOR DE SISTEMA
-                // ==================================================
-
+                // Indicador de sistema
                 Positioned(
                   top: 20,
                   left: 24,
@@ -164,113 +170,66 @@ class _StartupScreenState extends State<StartupScreen> {
                       children: [
                         const Text(
                           'GAOS',
-                          style:
-                              TextStyle(
-                            color:
-                                Color(
-                              0xFF39FF14,
-                            ),
+                          style: TextStyle(
+                            color: Color(0xFF39FF14),
                             fontSize: 15,
-                            fontWeight:
-                                FontWeight.bold,
-                            letterSpacing:
-                                1.5,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.5,
                           ),
                         ),
                         const Spacer(),
                         const Icon(
-                          Icons
-                              .signal_cellular_alt,
+                          Icons.signal_cellular_alt,
                           size: 15,
-                          color:
-                              Colors.white70,
+                          color: Colors.white70,
                         ),
-                        const SizedBox(
-                          width: 6,
-                        ),
+                        const SizedBox(width: 6),
                         const Icon(
                           Icons.wifi,
                           size: 15,
-                          color:
-                              Colors.white70,
+                          color: Colors.white70,
                         ),
-                        const SizedBox(
-                          width: 6,
-                        ),
+                        const SizedBox(width: 6),
                         const Icon(
                           Icons.battery_full,
                           size: 17,
-                          color:
-                              Color(
-                            0xFF39FF14,
-                          ),
+                          color: Color(0xFF39FF14),
                         ),
                       ],
                     ),
                   ),
                 ),
 
-                // ==================================================
-                // TEXTO DE CARGA
-                // ==================================================
-
+                // Estado de carga
                 if (loading)
                   Positioned.fill(
                     child: Container(
-                      color:
-                          const Color(
-                        0x66000000,
-                      ),
-                      alignment:
-                          Alignment.center,
+                      color: const Color(0x66000000),
+                      alignment: Alignment.center,
                       child: Container(
-                        padding:
-                            const EdgeInsets
-                                .symmetric(
+                        padding: const EdgeInsets.symmetric(
                           horizontal: 25,
                           vertical: 14,
                         ),
-                        decoration:
-                            BoxDecoration(
-                          color:
-                              const Color(
-                            0xEE080B0A,
-                          ),
-                          borderRadius:
-                              BorderRadius
-                                  .circular(
-                            14,
-                          ),
-                          border:
-                              Border.all(
-                            color:
-                                const Color(
-                              0xFF39FF14,
-                            ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xEE080B0A),
+                          borderRadius: BorderRadius.circular(14),
+                          border: Border.all(
+                            color: const Color(0xFF39FF14),
                           ),
                           boxShadow: const [
                             BoxShadow(
-                              color:
-                                  Color(
-                                0x6639FF14,
-                              ),
-                              blurRadius:
-                                  20,
+                              color: Color(0x6639FF14),
+                              blurRadius: 20,
                             ),
                           ],
                         ),
                         child: const Text(
                           'LOADING GAOS...',
-                          style:
-                              TextStyle(
-                            color:
-                                Color(
-                              0xFF39FF14,
-                            ),
-                            fontWeight:
-                                FontWeight.bold,
-                            letterSpacing:
-                                2,
+                          style: TextStyle(
+                            color: Color(0xFF39FF14),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
                           ),
                         ),
                       ),
